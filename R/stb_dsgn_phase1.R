@@ -1,10 +1,10 @@
 ## -----------------------------------------------------------------------------
 ##
 ##  DESCRIPTION:
-##      This file contains R functions for dose selection fix studies
+##      This file contains R functions for phase 1 study designs
 ##
 ##  DATE:
-##      AUGUST, 2023
+##      AUGUST, 2024
 ## -----------------------------------------------------------------------------
 
 #' Describe the design
@@ -78,6 +78,10 @@ internal_desp1_dpara <- function() {
 #'
 desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
 
+    ## sample size
+    sample_size         <- lst_para$sample_size
+    size_dose           <- lst_para$size_dose
+
     ## regular stage
     size_cohort_regular <- lst_para$size_cohort_regular
     n_reuse_regular     <- lst_para$n_reuse_regular
@@ -92,24 +96,29 @@ desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
     if (is.null(data)) {
         enroll_shift <- lst_para$date_bos
         sid_shift    <- 0
+        n_total      <- 0
         n_treated    <- 0
         is_acc       <- TRUE
         pt_available <- data.frame()
     } else {
         enroll_shift <- max(data$date_dlt)
         sid_shift    <- max(data$sid)
+        n_total      <- nrow(data)
         n_treated    <- nrow(data %>%
                              filter(dose == cur_dose))
 
+        ## number of patients by dose level
         pt_level <- data %>%
             group_by(dose) %>%
             summarize(n = n())
 
+        ## patients who have been treated at the current dose or above
         pt_treated <- data %>%
             filter(dose >= cur_dose) %>%
             select(sid) %>%
             unique()
 
+        ## patients who are available for intra-patient dose escalation
         pt_available <- data %>%
             group_by(sid, date_enroll) %>%
             summarize(n    = n(),
@@ -119,12 +128,13 @@ desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
             filter(!(sid %in% pt_treated$sid)) %>%
             arrange(date_enroll)
 
-
+        ## is it still in acceleration
         is_acc <- 0 == n_treated &
             max(pt_level$n) < size_cohort_regular
     }
 
     n_ava  <- nrow(pt_available)
+
     if (is_acc) {
         n_need  <- size_cohort_acc
         n_reuse <- n_reuse_acc
@@ -137,12 +147,23 @@ desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
             n_need  <- size_cohort_regular
         }
 
+        n_need  <- min(n_need,
+                       sample_size - n_total,
+                       size_dose   - n_treated)
+
         n_reuse <- n_reuse_regular
+    }
+
+
+    ## max sample size or max dose size reached
+    if (0 == n_need) {
+        return(NULL)
     }
 
     nenroll_exist <- min(n_need, n_reuse, n_ava)
     nenroll_new   <- n_need - nenroll_exist
 
+    ## enroll new patients and retreat existing patients
     cur_new    <- NULL
     cur_exist  <- NULL
 
@@ -167,8 +188,9 @@ desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
     }
 
     if (nenroll_exist > 0) {
-        cur_prob <- stb_tl_p1_sce(
-            c(cur_tox * lst_para$intra_fac, cur_res, rho))[1, ]
+        cur_intra_tox <- min(cur_tox * lst_para$intra_fac, 0.999)
+        cur_prob      <- stb_tl_p1_sce(
+            c(cur_intra_tox, cur_res, rho))[1, ]
 
         cur_exist <- stb_tl_p1_simu_cohort(
             nenroll_exist, cur_prob,
@@ -202,6 +224,7 @@ desp1_generate_cohort_flex <- function(lst_para, dose, data, ...) {
 
 #' Generate Cohort
 #'
+#' Deprecated
 #'
 #'
 desp1_generate_cohort_fix <- function(lst_para, dose, data, inx, ...) {
@@ -231,6 +254,45 @@ desp1_generate_cohort_fix <- function(lst_para, dose, data, inx, ...) {
     rbind(data, cur_data)
 }
 
+#'  Accelerated escalation
+#'
+#'
+#' @export
+#'
+desp1_escalation <- function(data, cur_dose, ava_dose,
+                              lst_para, f_esc = tp3_escalation,
+                              ...) {
+
+    size_cohort_acc <- lst_para$size_cohort_acc
+    cur_data        <- data %>% filter(dose == cur_dose)
+    n_dlt           <- sum(cur_data$tox)
+    n               <- nrow(cur_data)
+
+    if (size_cohort_acc == n &&
+        n_dlt           == 0) {
+        ## acceleration and no tox
+        ## escalate
+        rst <- list(next_dose = min(cur_dose + 1,
+                                    max(ava_dose)),
+                    ava_dose  = ava_dose)
+    } else if (size_cohort_acc == n) {
+        ## acceleration but tox observed
+        ## stay
+        rst <- list(next_dose = cur_dose,
+                    ava_dose  = ava_dose)
+    } else {
+        ## not acceleration anymore
+        ## regular escalation
+        rst <- f_esc(data     = data,
+                     cur_dose = cur_dose,
+                     ava_dose = ava_dose,
+                     lst_para = lst_para,
+                     ...)
+    }
+
+    rst
+}
+
 #' Summarize trial
 #'
 #' @export
@@ -257,181 +319,4 @@ desp1_summarize <- function(data, n_dose, ...) {
 
     list(by_dose  = by_dose,
          by_study = by_study)
-}
-
-#'  3+3 Design escalation
-#'
-#'
-#' @export
-#'
-tp3_escalation <- function(lst_para, data, cur_dose) {
-
-    n_dose    <- lst_para$n_dose
-    cur_data  <- data %>% filter(dose == cur_dose)
-    n_dlt     <- sum(cur_data$tox)
-    n         <- nrow(cur_data)
-
-    if (0 == n_dlt) {
-        decision <- 1
-    } else if (1 == n_dlt & 3 == n) {
-        decision <- 0
-    } else if (1 >= n_dlt) {
-        decision <- 1
-    } else {
-        decision <- -1
-    }
-
-    next_dose <- min(cur_dose + decision, n_dose)
-    next_dose <- max(next_dose, 1)
-
-    tox_dose <- data %>%
-        group_by(dose) %>%
-        summarize(ntox = sum(tox)) %>%
-        filter(ntox >= 2)
-
-    if (next_dose %in% tox_dose$dose) {
-        ## stop
-        next_dose <- cur_dose
-    }
-
-    next_data <- data %>% filter(dose == next_dose)
-    if (6 == nrow(next_data))
-        next_dose <- -1
-
-    next_dose
-}
-
-#' Accelerated design
-#'
-#' Generate cohorts
-#'
-acctit_generate_cohort <- function(lst_para, dose, data, inx, ...) {
-
-    size_cohort  <- lst_para$size_cohort
-    acc_max_dose <- lst_para$acc_max_dose
-    cur_dose     <- dose
-
-    pt_available <- data.frame()
-    if (is.null(data)) {
-        enroll_shift <- lst_para$date_bos
-        sid_shift    <- 0
-        n_need       <- 1
-    } else {
-        enroll_shift <- max(data$date_dlt)
-        sid_shift    <- max(data$sid)
-
-        pt_level <- data %>%
-            group_by(dose) %>%
-            summarize(n = n())
-
-        pt_treated <- data %>%
-            filter(dose >= cur_dose) %>%
-            select(sid) %>%
-            unique()
-
-        pt_available <- data %>%
-            group_by(sid, date_enroll) %>%
-            summarize(n    = n(),
-                      ntox = sum(tox)) %>%
-            filter(0 == ntox &
-                   n < acc_max_dose) %>%
-            filter(!(sid %in% pt_treated$sid)) %>%
-            arrange(date_enroll)
-
-        n_treated <- nrow(data %>%
-                          filter(dose == cur_dose))
-
-        ## accelerated
-        if (0 == n_treated &
-            max(pt_level$n) < size_cohort) {
-            n_need  <- 1
-        } else {
-            if (n_treated < size_cohort) {
-                n_need <- size_cohort - n_treated
-            } else {
-                n_need <- size_cohort
-            }
-        }
-    }
-
-    n_ava   <- nrow(pt_available)
-    n_new   <- max(n_need - n_ava, 0)
-    n_exist <- n_need - n_new
-
-    cur_new    <- NULL
-    cur_exist  <- NULL
-    cur_tox    <- lst_para$tox_rate[cur_dose]
-    cur_res    <- lst_para$res_rate[cur_dose]
-    rho        <- lst_para$rho
-
-    if (n_new > 0) {
-        cur_prob <- stb_tl_p1_sce(
-            c(cur_tox, cur_res, rho))[1, ]
-
-        cur_new <- stb_tl_p1_simu_cohort(
-            n_new, cur_prob, inx,
-            par_enroll   = lst_para$par_enroll,
-            enroll_shift = enroll_shift,
-            dlt_days     = lst_para$dlt_days,
-            ...)
-        cur_new$sid <- cur_new$sid + sid_shift
-    }
-
-    if (n_exist > 0) {
-        cur_prob <- stb_tl_p1_sce(
-            c(cur_tox * lst_para$intra_fac, cur_res, rho))[1, ]
-
-        cur_exist <- stb_tl_p1_simu_cohort(
-            n_exist, cur_prob, inx,
-            par_enroll   = lst_para$par_enroll,
-            enroll_shift = enroll_shift,
-            dlt_days     = lst_para$dlt_days,
-            ...)
-
-        sid_exist <- pt_available$sid[1:n_exist]
-
-        d1 <- data %>%
-            filter(sid %in% sid_exist) %>%
-            group_by(sid) %>%
-            arrange(date_dlt, .by_group = TRUE) %>%
-            slice_tail(n = 1) %>%
-            mutate(date_dlt = date_dlt + lst_para$dlt_days) %>%
-            select(1:6)
-
-        d2 <- cur_exist %>%
-            select(-(1:6))
-
-        cur_exist <- cbind(d1, d2)
-    }
-
-    cur_data      <- rbind(cur_new, cur_exist)
-    cur_data$dose <- dose
-
-    ## return
-    rbind(data, cur_data)
-}
-
-
-#'  3+3 Design escalation
-#'
-#'
-#' @export
-#'
-acctit_escalation <- function(lst_para, data, cur_dose, ...) {
-
-    size_cohort_acc <- lst_para$size_cohort_acc
-    n_dose          <- lst_para$n_dose
-    cur_data        <- data %>% filter(dose == cur_dose)
-    n_dlt           <- sum(cur_data$tox)
-    n               <- nrow(cur_data)
-
-    if (size_cohort_acc == n & 0 == n_dlt) {
-        next_dose <- min(cur_dose + 1, n_dose)
-    } else if (size_cohort_acc == n) {
-        next_dose <- cur_dose
-    } else {
-        next_dose <- tp3_escalation(lst_para, data, cur_dose, ...)
-    }
-
-    next_dose
 }

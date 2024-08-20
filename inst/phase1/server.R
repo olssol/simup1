@@ -1,17 +1,12 @@
 shinyServer(function(input, output, session) {
 
-    source("design_ui.R", local = TRUE);
-
+    source("design_ui.R", local = TRUE)
     userLog <- reactiveValues()
 
     ##---------main-------------------------
     ##--------------------------------------
     output$mainpage <- renderUI({
         tab_main()
-    })
-
-    output$plt_design <- renderPlot({
-        plot_design()
     })
 
     ##---------design-----------------------
@@ -34,6 +29,23 @@ shinyServer(function(input, output, session) {
                            },
                            options = list(paging = FALSE, info = FALSE)
                            )
+
+    output$plt_design <- renderPlot({
+        plot_design()
+    })
+
+    output$txt_design <- renderPrint({
+        xx <- get_design()
+        req(xx)
+
+        stb_describe(xx)
+    })
+
+    output$txt_design_para <- renderPrint({
+        xx <- get_design()
+        req(xx)
+        stb_get_para(xx)
+    })
 
     ##---------trial------------------------
     ##--------------------------------------

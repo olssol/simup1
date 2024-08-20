@@ -44,31 +44,51 @@ ui_settings <- list(
         ),
 
         accordion_panel(
-            "Trial Setting",
+            "Trial Design",
 
-            numericInput("inEnrollRate",
-                         tip_txt("Enrollment Per Month",
-                                 "Number of patients enrolled by month"),
-                         0.5,
-                         min = 0, step = 0.1),
-            numericInput("inDltDays",
-                         tip_txt("DLT Window Days",
-                                 "Number of days for dose limiting toxicity"),
-                         28,
-                         min = 0, step = 1),
-            numericInput("inRegSize",
-                         tip_txt("Cohort Size",
-                              "Cohort size after acceleration"),
-                         3,
-                         min = 0, step = 1),
+            selectInput(
+                inputId = "inDesign",
+                label = "Choose a design:",
+                choices = c("3+3"  = "dose_acctit",
+                            "BOIN" = "dose_boin"),
+                selected = "dose_acctit"
+            ),
 
             checkboxInput("inChkAcc",
                           "Allow acceleration",
                           TRUE),
+
             checkboxInput("inChkTit",
                           "Allow intra-patient dose escalation",
                           TRUE)
-            ),
+        ),
+
+        conditionalPanel(
+            condition = "input.inDesign == 'dose_boin'",
+            accordion_panel(
+                "BOIN Design",
+                numericInput("inTarTox",
+                             "Target toxicity rate",
+                             0.3,
+                             min = 0, max = 1, step = 0.01),
+                numericInput("inBoinLow",
+                             "Lower bound of toxicity rate",
+                             0.6,
+                             min = 0, max = 1, step = 0.01),
+                numericInput("inBoinUp",
+                             "Upper bound of toxicity rate",
+                             1.4,
+                             min = 1, max = 2, step = 0.01),
+                numericInput("inSampleSize",
+                             "Maximum sample size",
+                             24,
+                             min = 1, step = 1),
+                numericInput("inSizeDose",
+                             "Maximum sample size for each dose",
+                             9,
+                             min = 1, step = 1)
+            )
+        ),
 
         conditionalPanel(
             condition = "input.inChkAcc == true",
@@ -113,6 +133,27 @@ ui_settings <- list(
             )),
 
         accordion_panel(
+            "Operation Setting",
+
+            numericInput("inEnrollRate",
+                         tip_txt("Enrollment Per Month",
+                                 "Number of patients enrolled by month"),
+                         0.5,
+                         min = 0, step = 0.1),
+            numericInput("inDltDays",
+                         tip_txt("DLT Window Days",
+                                 "Number of days for dose limiting toxicity"),
+                         28,
+                         min = 0, step = 1),
+
+            numericInput("inRegSize",
+                         tip_txt("Cohort Size",
+                                 "Cohort size after acceleration"),
+                         3,
+                         min = 0, step = 1)
+        ),
+
+        accordion_panel(
             "Simulation",
             numericInput("inSimuRep",
                          "Number of Replications",
@@ -130,46 +171,21 @@ ui_settings <- list(
     )
 )
 
-cards <- list(
-    bslib::value_box(
-        title = "Chance High Dose Significant",
-        value = textOutput("txtHighSig"),
-        showcase = bsicons::bs_icon("award")
-    ),
-
-    bslib::value_box(
-        title = "Chance Low Dose Significant",
-        value = textOutput("txtLowSig"),
-        showcase = bsicons::bs_icon("award")
-    ),
-
-    bslib::value_box(
-        title = "Chance Assumptions Hold",
-        value = textOutput("txtAssumptions"),
-        showcase = bsicons::bs_icon("award")
-    ),
-
-    card(
-        card_header("Risk Ratios: High vs. Placebo"),
-        plotOutput("plt_HP")),
-
-    card(
-        card_header("Risk Ratios: Low vs. Placebo"),
-        plotOutput("plt_LP")),
-
-    card(
-        card_header("Example Cases"),
-        DT::dataTableOutput("dtEx"))
-
-    ## ,card(
-    ##     card_header("Where is the Outlier?"),
-    ##     plotOutput("plt_Outlier"))
-)
-
 panel_design <- list(
-    card(
-        card_header("Toxicity Rates"),
-        plotOutput("plt_design"))
+    accordion(
+        accordion_panel(
+            "Toxicity Rates",
+            plotOutput("plt_design")
+        ),
+        accordion_panel(
+            "Design Details",
+            verbatimTextOutput("txt_design")
+        ),
+        accordion_panel(
+            "Design Parameters",
+            verbatimTextOutput("txt_design_para")
+        )
+    )
 )
 
 panel_trial <- list(
@@ -274,25 +290,32 @@ get_design_para <- reactive({
         par_enroll = list(type       = "by_rate",
                           pt_per_mth = input$inEnrollRate),
 
-        dlt_days   = input$inDltDays,
+        dlt_days            = input$inDltDays,
         size_cohort_regular = input$inRegSize,
         size_cohort_acc     = size_cohort_acc,
         n_reuse_regular     = n_reuse_regular,
         n_reuse_acc         = n_reuse_acc,
         acc_max_dose        = input$inAccMaxCycle,
-        intra_fac           = input$inAccFactor
-    )
+        intra_fac           = input$inAccFactor,
 
+        ## BOIN design
+        target_tox          = input$inTarTox,
+        boin_upper          = input$inBoinUp,
+        boin_lower          = input$inBoinLow,
+        sample_size         = input$inSampleSize,
+        size_dose           = input$inSizeDose
+    )
 })
 
 get_design <- reactive({
 
     lst_para <- get_design_para()
+    req(lst_para)
 
-    if (is.null(lst_para))
-        return(NULL)
+    design <- input$inDesign
+    req(design)
 
-    xx <- stb_create_design("dose_acctit")
+    xx <- stb_create_design(design)
     stb_para(xx) <- lst_para
     xx
 })

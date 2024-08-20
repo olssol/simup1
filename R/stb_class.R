@@ -18,6 +18,8 @@
 ## -----------------------------------------------------------------------------
 
 #'
+#' @include stb_c_generic.R
+#'
 #' @export
 #'
 setClass("STB_DESIGN_P1",
@@ -35,28 +37,6 @@ setMethod("stb_set_default_para",
               internal_desp1_dpara()
           })
 
-setMethod("stb_plot_design",
-           "STB_DESIGN_P1",
-          function(x, reference = 0.3, ...) {
-
-    tox <- x@design_para$tox_rate
-    dta <- data.frame(Dose = seq_len(length(tox)),
-                      Tox  = tox)
-
-    rst <- ggplot(data = dta, aes(x = Dose, y = Tox)) +
-        geom_line() +
-        geom_point() +
-        theme_bw() +
-        labs(y = "Toxicity Rate") +
-        scale_y_continuous(limits = c(0, 1))
-
-    if (!is.null(reference))
-        rst <- rst + geom_hline(yintercept = reference, lty = 2)
-
-    rst
-})
-
-
 setMethod("stb_para<-",
           "STB_DESIGN_P1",
           function(x, value) {
@@ -66,16 +46,22 @@ setMethod("stb_para<-",
     x
 })
 
+setMethod("stb_plot_design",
+           "STB_DESIGN_P1",
+          function(x, ...) {
+
+    tox <- x@design_para$tox_rate
+    plot_tox(tox, ...)
+})
+
 setMethod("stb_generate_cohort",
           "STB_DESIGN_P1",
-          function(x, dose, data, inx, ...) {
+          function(x, dose, data, ...) {
 
-    cur_cohort <- desp1_generate_cohort_flex(x@design_para,
-                                             dose,
-                                             data, ...) %>%
-        mutate(cohort = inx)
-
-    rbind(data, cur_cohort)
+    desp1_generate_cohort_flex(x@design_para,
+                               dose,
+                               data,
+                               ...)
 })
 
 setMethod("stb_analyze_data",
@@ -104,35 +90,39 @@ setMethod("stb_describe",
     callNextMethod(x, ...)
 })
 
+setMethod("stb_set_default_para",
+          "STB_DESIGN_P1_3P3",
+          function(x) {
+    callNextMethod(x) %>%
+        inter_3p3_dpara_ext()
+})
+
+setMethod("stb_para<-",
+          "STB_DESIGN_P1_3P3",
+          function(x, value) {
+    x             <- callNextMethod(x, value)
+    lst_para      <- inter_3p3_dpara_ext(x@design_para)
+    x@design_para <- lst_para
+    x
+})
 
 ## next dose = -1: stop the trial
 setMethod("stb_escalation",
           "STB_DESIGN_P1_3P3",
-          function(x, dose, data, ...) {
+          function(x, dose, data, ava_dose, ...) {
 
-    next_dose <- tp3_escalation(x@design_para,
-                                data,
-                                cur_dose = dose)
-    return(next_dose)
+    desp1_escalation(data     = data,
+                     cur_dose = dose,
+                     ava_dose = ava_dose,
+                     lst_para = x@design_para,
+                     ...)
 })
 
 ## next dose = -1: stop the trial
 setMethod("stb_recommend",
           "STB_DESIGN_P1_3P3",
           function(x, data, ...) {
-
-    cur_data <- data %>%
-        group_by(dose) %>%
-        summarize(dlt_rate = mean(tox)) %>%
-        filter(dlt_rate < 1 / 3)
-
-    if (0 == nrow(cur_data)) {
-        rst <- NA
-    } else {
-        rst <- max(cur_data$dose)
-    }
-
-    rst
+    tp3_recommend(data, ...)
 })
 
 ## -----------------------------------------------------------------------------
@@ -158,6 +148,7 @@ setMethod("stb_describe",
 setMethod("stb_set_default_para",
           "STB_DESIGN_P1_ACCTIT",
           function(x, ...) {
+
     rst <- callNextMethod(x, ...)
     rst$n_reuse_regular <- 3
     rst$size_cohort_acc <- 1
@@ -165,20 +156,74 @@ setMethod("stb_set_default_para",
     rst
 })
 
-## next dose = -1: stop the trial
-setMethod("stb_escalation",
-          "STB_DESIGN_P1_ACCTIT",
-          function(x, dose, data, ...) {
+## -----------------------------------------------------------------------------
+##                    BOIN Design
+## -----------------------------------------------------------------------------
 
-    next_dose <- acctit_escalation(x@design_para,
-                                   data,
-                                   cur_dose = dose)
-    return(next_dose)
+#' The Accelerated Titration Design
+#'
+#' @export
+#'
+setClass("STB_DESIGN_P1_BOIN",
+         contains = "STB_DESIGN_P1")
+
+setMethod("stb_describe",
+          "STB_DESIGN_P1_BOIN",
+          function(x, ...) {
+
+    cat("Type: \n")
+    cat("    The BOIN design \n\n")
+    callNextMethod(x, ...)
+    boin_describe()
 })
 
-## -----------------------------------------------------------------------------
-##                     Accelerated Titration
-## -----------------------------------------------------------------------------
+setMethod("stb_set_default_para",
+          "STB_DESIGN_P1_BOIN",
+          function(x, ...) {
+    callNextMethod(x, ...) %>%
+        internal_boin_dpara() %>%
+        inter_boin_dpara_ext()
+})
+
+setMethod("stb_para<-",
+          "STB_DESIGN_P1_BOIN",
+          function(x, value) {
+    x    <- callNextMethod(x, value)
+    para <- inter_boin_dpara_ext(x@design_para)
+    x@design_para <- para
+    x
+})
+
+setMethod("stb_plot_design",
+           "STB_DESIGN_P1",
+          function(x, ...) {
+
+    tox       <- x@design_para$tox_rate
+    reference <- x@design_para$target_tox
+
+    plot_tox(tox, reference = reference, ...)
+})
+
+
+## next dose = -1: stop the trial
+setMethod("stb_escalation",
+          "STB_DESIGN_P1_BOIN",
+          function(x, dose, data, ava_dose, ...) {
+
+    desp1_escalation(data     = data,
+                     cur_dose = dose,
+                     ava_dose = ava_dose,
+                     f_est    = boin_escalation,
+                     lst_para = x@design_para,
+                     ...)
+})
+
+## next dose = -1: stop the trial
+setMethod("stb_recommend",
+          "STB_DESIGN_P1_BOIN",
+          function(x, data, ...) {
+    boin_recommend(x@design_para, data, ...)
+})
 
 
 ## -----------------------------------------------------------------------------

@@ -218,14 +218,34 @@ setMethod("stb_create_trial",
     if (!is.null(seed))
         old_seed <- set.seed(seed)
 
-    next_dose <- 1
-    data      <- NULL
-    inx       <- 1
-    while (next_dose > -1) {
-        dose      <- next_dose
-        data      <- stb_generate_cohort(x, dose, data, inx, ...)
-        next_dose <- stb_escalation(x, dose, data, ...)
-        inx       <- inx + 1
+    n_dose   <- x@design_para$n_dose
+    ava_dose <- seq_len(n_dose)
+    data     <- NULL
+    dose     <- 1
+    cohort   <- 1
+    while (dose > -1 & length(ava_dose) > 1) {
+        ## enrollment
+        cur_cohort <- stb_generate_cohort(x, dose, data, ...)
+
+        if (is.null(cur_cohort)) {
+            ## max sample size or max dose size reached
+            break
+        }
+
+        cur_cohort <- cur_cohort %>%
+            mutate(cohort   = cohort,
+                   ava_dose = paste(ava_dose, collapse = ","))
+
+        ## combine data
+        data      <- rbind(data, cur_cohort)
+
+        ## cohort indext
+        cohort    <- cohort + 1
+
+        ## escalation
+        lst_next  <- stb_escalation(x, dose, data, ava_dose, ...)
+        dose      <- lst_next$next_dose
+        ava_dose  <- lst_next$ava_dose
     }
 
     result                    <- stb_analyze_data(x, data, ...)
@@ -346,6 +366,7 @@ setMethod("stb_create_simustudy",
                                     if (0 == k %% 100)
                                         print(k)
 
+                                    ## print(all_seeds[k])
                                     cur_trial <-
                                         stb_create_trial(
                                             x,
@@ -486,14 +507,14 @@ setMethod("stb_get_simu_seed",     "STB_SIMU_STUDY", function(x) x@seed)
 stb_create_design <- function(type = c("dose_fix",
                                        "dose_3p3",
                                        "dose_acctit",
-                                       "dose_acc2")) {
+                                       "dose_boin")) {
 
     type <- match.arg(type)
     rst  <- switch(type,
                    dose_fix    = new("STB_DESIGN_DOSE_FIX"),
                    dose_3p3    = new("STB_DESIGN_P1_3P3"),
                    dose_acctit = new("STB_DESIGN_P1_ACCTIT"),
-                   dose_acc2   = new("STB_DESIGN_P1_ACC2"),
+                   dose_boin   = new("STB_DESIGN_P1_BOIN"),
                    new("STB_DESIGN"))
 
     rst

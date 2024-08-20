@@ -142,3 +142,27 @@ stb_tl_p1_simu_cohort <- function(cur_n, cur_prob,
     list(data_enroll = data_enroll,
          data_tox    = data_tox)
 }
+
+
+#' Plot toxicity
+#'
+#'
+#' @export
+#'
+plot_tox <- function(tox, reference = 0.3, ...) {
+    dta <- data.frame(Dose = seq_len(length(tox)),
+                      Tox  = tox)
+
+    rst <- ggplot(data = dta, aes(x = Dose, y = Tox)) +
+        geom_line() +
+        geom_point() +
+        theme_bw() +
+        labs(y = "Toxicity Rate") +
+        scale_y_continuous(limits = c(0, 1))
+
+    if (!is.null(reference))
+        rst <- rst +
+            geom_hline(yintercept = reference, lty = 2)
+
+    rst
+}

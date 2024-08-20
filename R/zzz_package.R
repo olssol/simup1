@@ -1,7 +1,7 @@
 #' The 'simup1' package.
 #'
-#' @docType package
-#' @name    simup1-package
+#' @keywords internal
+#' @name    simup1
 #' @aliases simup1
 #' @useDynLib simup1, .registration = TRUE
 #'
@@ -18,6 +18,6 @@
 #'     rename filter select arrange ungroup n distinct left_join if_else rowwise
 #' @importFrom tidyr gather
 #' @importFrom data.table rbindlist
-#'
+#' @importFrom BOIN get.boundary select.mtd
 #'
 NULL
