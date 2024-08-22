@@ -1,7 +1,8 @@
 shinyServer(function(input, output, session) {
 
     source("design_ui.R", local = TRUE)
-    userLog <- reactiveValues()
+    userLog         <- reactiveValues()
+    userLog$history <- NULL
 
     ##---------main-------------------------
     ##--------------------------------------
@@ -79,7 +80,6 @@ shinyServer(function(input, output, session) {
 
     ##---------simu-------------------------
     ##--------------------------------------
-
     output$dt_simu_rst1 <- DT::renderDataTable({
                                     rst <- get_simu_rst()
 
@@ -121,4 +121,15 @@ shinyServer(function(input, output, session) {
                                     dom = 't',
                                     info = FALSE)
                                 )
+    ##---------history----------------------
+    ##--------------------------------------
+    output$dt_simu_hist <- DT::renderDataTable({
+                                   userLog$history
+                               },
+                               options = list(
+                                   paging = FALSE,
+                                   dom = 't',
+                                   info = FALSE)
+                               )
+
 })

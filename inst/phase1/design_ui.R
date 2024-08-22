@@ -5,8 +5,6 @@
 ##
 ## -----------------------------------------------------------------------------
 ## -----------------------------------------------------------------------------
-
-
 tip_txt <- function(label, message, placement = "bottom") {
     label |>
         span(
@@ -235,6 +233,18 @@ panel_simu <- list(
     )
 )
 
+panel_history <- list(
+    card(
+        actionButton("inBtnClear",
+                     "Clear History",
+                     class = "btn btn-success")
+    ),
+    card(
+        DT::dataTableOutput("dt_simu_hist")
+    )
+)
+
+
 tab_main <- function() {
     page_sidebar(
         title   = "Phase I Dose Escalation Simulation",
@@ -253,7 +263,8 @@ tab_main <- function() {
             nav_panel(title = "Design", !!!panel_design),
             nav_panel(title = "Single Trial", !!!panel_trial),
             nav_panel(title = "Operating Characteristics",
-                      !!!panel_simu)
+                      !!!panel_simu),
+            nav_panel(title = "History", !!!panel_history)
         )
     )
 }
@@ -349,6 +360,14 @@ get_simu_rst <- reactive({
                                n_core = input$inSimuCore,
                                seed   = input$inSimuSeed)
 
-    stb_get_simu_summary(zz)
+    rst             <- stb_get_simu_summary(zz)
+    userLog$history <- rbind(userLog$history,
+                             rst$by_study)
+
+    rst
 }) %>%
     bindEvent(input$inBtnSimu)
+
+observeEvent(input$inBtnClear, {
+    userLog$history <- NULL
+})

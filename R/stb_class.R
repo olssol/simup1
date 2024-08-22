@@ -213,7 +213,7 @@ setMethod("stb_escalation",
     desp1_escalation(data     = data,
                      cur_dose = dose,
                      ava_dose = ava_dose,
-                     f_est    = boin_escalation,
+                     f_esc    = boin_escalation,
                      lst_para = x@design_para,
                      ...)
 })
@@ -221,8 +221,15 @@ setMethod("stb_escalation",
 ## next dose = -1: stop the trial
 setMethod("stb_recommend",
           "STB_DESIGN_P1_BOIN",
-          function(x, data, ...) {
-    boin_recommend(x@design_para, data, ...)
+          function(x, data, ava_dose, ...) {
+
+    if (0 == length(ava_dose))
+        return(NA)
+
+    inx <- which(data$dose %in% ava_dose)
+    boin_recommend(x@design_para,
+                   data[inx, ],
+                   ...)
 })
 
 

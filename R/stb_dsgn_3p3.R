@@ -32,13 +32,14 @@ tp3_escalation <- function(data, cur_dose, ava_dose, ...) {
 
     if (0 == n_dlt) {
         decision <- 1
-    } else if (1 == n_dlt & 3 == n) {
+    } else if (1 == n_dlt && 3 == n) {
         decision <- 0
     } else if (n_dlt <= 1) {
         decision <- 1
     } else {
         decision <- -1
     }
+
 
     next_dose <- min(cur_dose + decision, max(ava_dose))
     next_dose <- max(next_dose, min(ava_dose))

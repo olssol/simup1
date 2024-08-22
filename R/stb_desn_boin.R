@@ -63,7 +63,7 @@ boin_escalation <- function(lst_para, data, cur_dose, ava_dose, ...) {
     n_dlt     <- sum(cur_data$tox)
 
     ## max sample size reached
-    if (n_tot >= lst_para$sample_size ||
+    if (n_tot  >= lst_para$sample_size ||
         n_dose >= lst_para$size_dose) {
         rst <- list(next_dose = -1,
                     ava_dose  = ava_dose)
@@ -71,7 +71,7 @@ boin_escalation <- function(lst_para, data, cur_dose, ava_dose, ...) {
     }
 
     ## boin esclation
-    bound <- lst_para$boin_bound$boundary_tab[, n_dose]
+    bound <- lst_para$boin_bound$boundary_tab[2:4, n_dose]
 
     if (n_dlt <= bound[1]) {
         decision <- 1

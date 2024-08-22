@@ -260,22 +260,23 @@ desp1_generate_cohort_fix <- function(lst_para, dose, data, inx, ...) {
 #' @export
 #'
 desp1_escalation <- function(data, cur_dose, ava_dose,
-                              lst_para, f_esc = tp3_escalation,
+                             lst_para,
+                             f_esc = tp3_escalation,
                               ...) {
 
-    size_cohort_acc <- lst_para$size_cohort_acc
+    size_cohort_reg <- lst_para$size_cohort_regular
     cur_data        <- data %>% filter(dose == cur_dose)
     n_dlt           <- sum(cur_data$tox)
     n               <- nrow(cur_data)
 
-    if (size_cohort_acc == n &&
-        n_dlt           == 0) {
+    if (n     < size_cohort_reg &&
+        n_dlt == 0) {
         ## acceleration and no tox
         ## escalate
         rst <- list(next_dose = min(cur_dose + 1,
                                     max(ava_dose)),
                     ava_dose  = ava_dose)
-    } else if (size_cohort_acc == n) {
+    } else if (n < size_cohort_reg) {
         ## acceleration but tox observed
         ## stay
         rst <- list(next_dose = cur_dose,

@@ -249,7 +249,7 @@ setMethod("stb_create_trial",
     }
 
     result                    <- stb_analyze_data(x, data, ...)
-    result$by_study$recommend <- stb_recommend(x, data)
+    result$by_study$recommend <- stb_recommend(x, data, ava_dose, ...)
 
     if (!is.null(seed))
         set.seed(old_seed)
