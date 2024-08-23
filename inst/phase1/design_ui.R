@@ -54,11 +54,11 @@ ui_settings <- list(
 
             checkboxInput("inChkAcc",
                           "Allow acceleration",
-                          TRUE),
+                          FALSE),
 
             checkboxInput("inChkTit",
                           "Allow intra-patient dose escalation",
-                          TRUE)
+                          FALSE)
         ),
 
         conditionalPanel(
@@ -84,7 +84,15 @@ ui_settings <- list(
                 numericInput("inSizeDose",
                              "Maximum sample size for each dose",
                              9,
-                             min = 1, step = 1)
+                             min = 1, step = 1),
+                checkboxInput("inBOINBound",
+                             tip_txt("Apply boundary for MTD Selection",
+                                     "Whether to impose the condition that the
+                                     isotonic estimate of toxicity
+                                     probability for the selected MTD must be
+                                     less than de-escalation
+                                     boundary"),
+                              value = TRUE)
             )
         ),
 
@@ -314,7 +322,8 @@ get_design_para <- reactive({
         boin_upper          = input$inBoinUp,
         boin_lower          = input$inBoinLow,
         sample_size         = input$inSampleSize,
-        size_dose           = input$inSizeDose
+        size_dose           = input$inSizeDose,
+        boin_boundMTD       = input$inBOINBound
     )
 })
 
@@ -337,7 +346,8 @@ get_trial <- reactive({
     if (is.null(xx))
         return(NULL)
 
-    stb_create_trial(xx, seed = input$inSimuSeed)
+    stb_create_trial(xx,
+                     seed = input$inSimuSeed)
 })
 
 plot_design <- reactive({

@@ -17,6 +17,10 @@ boin_describe <- function(x, ...) {
     cat("                   interval (default 1.4) \n")
     cat("    boin_lower:    lower bound factor for BOIN target toxicity \n")
     cat("                   interval (default 0.6) \n")
+    cat("    boin_boundmtd: wheter to impose the condition that \n")
+    cat("                   the isotonic estimate of toxicity probability\n")
+    cat("                   for the selected MTD must be less than\n")
+    cat("                   de-escalation boundary (default TRUE) \n")
 }
 
 
@@ -39,9 +43,10 @@ inter_boin_dpara_ext <- function(lst) {
 #'
 internal_boin_dpara <- function(lst_para) {
     rst <- list(
-        target_tox = 0.3,
-        boin_upper = 1.4,
-        boin_lower = 0.6
+        target_tox    = 0.3,
+        boin_upper    = 1.4,
+        boin_lower    = 0.6,
+        boin_boundmtd = TRUE
     )
 
     rst <- c(lst_para, rst)
@@ -111,9 +116,13 @@ boin_recommend <- function(lst_para, data, ...) {
         summarize(n     = n(),
                   n_tox = sum(tox))
 
-    rst <- BOIN::select.mtd(target = lst_para$target_tox,
-                            npts   = data$n,
-                            ntox   = data$n_tox)
+    rst <- BOIN::select.mtd(
+                     target   = lst_para$target_tox,
+                     npts     = data$n,
+                     ntox     = data$n_tox,
+                     boundMTD = lst_para$boin_boundmtd,
+                     p.tox    = lst_para$boin_upper * lst_para$target_tox,
+                     ...)
 
     rst$MTD
 }
