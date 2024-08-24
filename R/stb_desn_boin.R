@@ -93,8 +93,12 @@ boin_escalation <- function(lst_para, data, cur_dose, ava_dose, ...) {
     }
 
     next_dose <- cur_dose + decision
-    next_dose <- min(next_dose, max(ava_dose))
-    next_dose <- max(next_dose, min(ava_dose))
+
+    if (next_dose > max(ava_dose))
+        next_dose <- max(ava_dose)
+
+    if (next_dose < min(ava_dose))
+        next_dose <- -1
 
     ## update available dose
     if (ele) {
@@ -124,5 +128,9 @@ boin_recommend <- function(lst_para, data, ...) {
                      p.tox    = lst_para$boin_upper * lst_para$target_tox,
                      ...)
 
-    rst$MTD
+    mtd <- rst$MTD
+    if (!(mtd %in% seq_len(lst_para$n_dose)) )
+        mtd <- NA
+
+    mtd
 }
